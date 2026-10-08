@@ -1,0 +1,83 @@
+name: herramientas-ti-TA03
+
+services:
+
+  emqx:
+    image: emqx/emqx:latest
+    container_name: emqx_broker
+    restart: unless-stopped
+
+    ports:
+      # Listener MQTT/TCP
+      - "1883:1883"
+
+      # MQTT sobre WebSocket
+      - "8083:8083"
+
+      # Dashboard Web de EMQX
+      - "18083:18083"
+
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  publisher:
+    build: ./publisher
+    container_name: mqtt_publisher
+
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+    restart: unless-stopped
+  
+  subscriber:
+    build: ./subscriber
+    container_name: mqtt_subscriber
+    restart: unless-stopped
+
+    environment:
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+
+    depends_on:
+      emqx:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb
+    restart: unless-stopped
+
+    ports:
+      - "8086:8086"
+
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+    depends_on:
+      - influxdb
+  
+
+volumes:
+  influxdb_data:
+  influxdb_config:
+  grafana_data:
